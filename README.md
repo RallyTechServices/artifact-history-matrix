@@ -28,6 +28,7 @@ has been deleted you will just see an ObjectID in that user's place.
 
 Time buckets represent local time.
 
+State and Priority filters are multi select.  If nothing is selected, then those fields are not filtered on.  
 
 ## Development Notes
 
