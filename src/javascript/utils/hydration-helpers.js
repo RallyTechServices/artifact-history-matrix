@@ -68,7 +68,20 @@ Ext.define('CA.agile.technicalservices.HydrationHelper',{
         }
         return undefined;
     },
+    getActualBucketFieldProperty: function(field){
+        if (Ext.Array.contains([
+                'Owner',
+                'SubmittedBy',
+                'Tester'
+            ], field)){
+            return field + ".DisplayName";
+        }
 
+        if (field === 'Project'){
+            return "Project.Name";
+        }
+        return field;
+    },
     /**
      * END of hydration helpers
      */

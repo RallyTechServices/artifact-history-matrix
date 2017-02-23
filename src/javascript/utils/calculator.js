@@ -1,7 +1,7 @@
 Ext.define('CA.agile.technicalservices.HistoryMatrixCalculator', {
     extend: 'Rally.data.lookback.calculator.TimeSeriesCalculator',
 
-    noneText: "-- None --",
+
 
     getMetrics: function () {
         var fields = [];
