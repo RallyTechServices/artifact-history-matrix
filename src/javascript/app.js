@@ -4,13 +4,15 @@ Ext.define("artifact-history-matrix", {
     logger: new Rally.technicalservices.Logger(),
     defaults: { margin: 10 },
     items: [
-        {xtype:'container',itemId:'selector_box',layout: 'hbox', html: '<div class="rally-title">Filter By</div>'},
+        {xtype:'container',itemId:'selector_box',layout: 'vbox', html: '<div class="rally-title">Filter By</div>'},
         {xtype:'container',itemId:'display_box'}
     ],
 
     integrationHeaders : {
         name : "artifact-history-matrix"
     },
+
+    noneText: "-- None --",
 
     /**
      * User can pick any dropdown field (custom and builtin) that do not
@@ -32,7 +34,7 @@ Ext.define("artifact-history-matrix", {
     bucketFieldAttributeTypeWhitelist: [
         'STRING'
     ],
-
+    detailFetchFields: ["FormattedID","Name","State"],
     config: {
         defaultSettings: {
             artifactType: 'Defect',
@@ -60,10 +62,15 @@ Ext.define("artifact-history-matrix", {
     addSelectors: function(){
         this.getSelectorBox().removeAll();
 
+        var box1 = this.getSelectorBox().add({
+            xtype: 'container',
+            layout: 'hbox'
+        });
 
-        var sb = this.getSelectorBox().add({
+        var sb = box1.add({
             xtype: 'rallyfieldvaluecombobox',
-            margin: '25 10 10 10',
+            itemId: 'statePicker',
+            margin: '25 5 5 5',
             fieldLabel: 'State',
             labelWidth: 50,
             model: this.getArtifactType(),
@@ -72,17 +79,38 @@ Ext.define("artifact-history-matrix", {
             labelAlign: 'right',
             stateful: true,
             stateId: 'state-picker',
-            width: 200
+            width: 250
         });
         sb.on('select', this.updateView, this);
 
-        var mb = this.getSelectorBox().add({
+        var pb = box1.add({
+            xtype: 'rallyfieldvaluecombobox',
+            itemId: 'priorityPicker',
+            margin: '25 5 5 5',
+            fieldLabel: 'Priority',
+            labelWidth: 50,
+            model: this.getArtifactType(),
+            field: "Priority",
+            multiSelect: true,
+            labelAlign: 'right',
+            stateful: true,
+            stateId: 'priority-picker',
+            width: 250
+        });
+        pb.on('select', this.updateView, this);
+
+        var box2 = this.getSelectorBox().add({
+            xtype: 'container',
+            layout: 'hbox'
+        });
+
+        var mb = box2.add({
             xtype: 'rallymilestonepicker',
             storeConfig: {
                 context: {project: null}
             },
             labelWidth: 50,
-            margin: '25 10 10 10',
+            margin: 5,
             fieldLabel: 'Milestone',
             labelAlign: 'right',
             labelSeparator: '',
@@ -90,9 +118,9 @@ Ext.define("artifact-history-matrix", {
         });
         mb.on('selectionchange', this.updateView, this);
 
-        var tb = this.getSelectorBox().add({
+        var tb = box2.add({
             xtype: 'rallytagpicker',
-            margin: '25 10 10 10',
+            margin: 5,
             fieldLabel: 'Tag',
             labelAlign: 'right',
             labelWidth: 50,
@@ -100,11 +128,6 @@ Ext.define("artifact-history-matrix", {
             width: 250
         });
         tb.on('selectionchange', this.updateView, this);
-
-
-
-
-
         this.updateView();
     },
     showErrorNotification: function(msg){
@@ -115,7 +138,8 @@ Ext.define("artifact-history-matrix", {
         var calc = Ext.create('CA.agile.technicalservices.HistoryMatrixCalculator',{
             startDate: Rally.util.DateTime.fromIsoString(this.getIsoStartDate()),
             endDate: new Date(),
-            bucketField: this.getBucketField()
+            bucketField: this.getBucketField(),
+            noneText: this.noneText
         });
         var data = calc.prepareChartData(store);
 
@@ -166,13 +190,94 @@ Ext.define("artifact-history-matrix", {
         });
 
         this.getDisplayBox().removeAll();
-        this.getDisplayBox().add({
+        var grid = this.getDisplayBox().add({
             xtype: 'rallygrid',
             store: store,
             columnCfgs: this.getColumnCfgs(data.categories),
             showRowActionsColumn: false,
             showPagingToolbar: false
         });
+        grid.on('itemdblclick', this.showCurrentArtifacts, this);
+    },
+    showCurrentArtifacts: function(grid, record){
+        var milestones = this.down('rallymilestonepicker').getValue(),
+            tags = this.down('rallytagpicker').getValue(),
+            states = this.down('#statePicker').getValue(),
+            priorities = this.down('#priorityPicker').getValue();
+
+        this.logger.log('showCurrentArtifacts', record, milestones, tags, states, priorities);
+
+        var bucketFieldValue = record.get(this.getBucketField());
+        //deal with blank values in the bucket field
+        bucketFieldValue = bucketFieldValue.replace(this.noneText, '');
+
+        //We need to get the right property to query with
+        var bucketFieldProperty = CA.agile.technicalservices.HydrationHelper.getActualBucketFieldProperty(this.getBucketField());
+        if (bucketFieldValue === ''){
+            bucketFieldProperty = this.getBucketField();
+        }
+
+        var filters = Ext.create('Rally.data.wsapi.Filter',{
+            property: bucketFieldProperty,
+            value: bucketFieldValue
+        });
+
+        if (states && states.length > 0){
+            var tempFilters = this.getTempFilters('State',states);
+            filters = filters.and(tempFilters);
+        }
+        this.logger.log('showCurrentArtifacts filters with states', filters.toString());
+
+        if (priorities && priorities.length > 0){
+            var tempFilters = this.getTempFilters('Priority',priorities);
+            filters = filters.and(tempFilters);
+        }
+        this.logger.log('showCurrentArtifacts filters with priorities', filters.toString());
+
+        if (milestones && milestones.length > 0){
+            var tempFilters = this.getTempFilters('Milestones.ObjectID',milestones);
+            filters = filters.and(tempFilters);
+        }
+        this.logger.log('showCurrentArtifacts filters with milestones', filters.toString());
+
+        if (tags && tags.length > 0){
+            var tempFilters = this.getTempFilters('Tags.ObjectID',tags);
+            filters = filters.and(tempFilters);
+        }
+        this.logger.log('showCurrentArtifacts filters with tags', filters.toString());
+
+        Ext.create('CA.agile.technicalservices.DetailPopover',{
+            context: this.getContext(),
+            autoShow: true,
+            title: "Defects for " + this.getBucketField() + " [" + record.get(this.getBucketField()) + "]",
+            titleIconHtml: '<div class="icon-defect"></div>',
+            modelNames: [this.getArtifactType()],
+            target: grid.getEl(),
+            gridConfig: {
+                storeConfig: {
+                    filters: filters,
+                    fetch: this.detailFetchFields,
+                    context: {project: null}
+                },
+                columnCfgs: this.detailFetchFields
+            }
+        });
+
+    },
+    getTempFilters: function(field, values){
+        var tempFilters = Ext.Array.map(values, function(v){
+            if (v === "None"){ v = ""; }
+            return {
+                property: field,
+                value: v
+            };
+        });
+        if (tempFilters.length > 1){
+            tempFilters = Rally.data.wsapi.Filter.or(tempFilters);
+        } else {
+            return Ext.create('Rally.data.wsapi.Filter', tempFilters[0]);
+        }
+        return tempFilters;
     },
     getColumnCfgs: function(buckets){
         var cols = [{
@@ -300,6 +405,7 @@ Ext.define("artifact-history-matrix", {
     getSelectorBox: function(){
         return this.down('#selector_box');
     },
+
     getOptions: function() {
         return [
             {
