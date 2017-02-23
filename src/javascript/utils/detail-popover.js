@@ -1,16 +1,25 @@
 
-    Ext.define('CA.agile.technicalservices.DetailPopover', {
+
+
+
+Ext.define('CA.agile.technicalservices.DetailPopover', {
         alias: 'widget.artifactdetailpopover',
-        extend: 'Rally.ui.popover.Popover',
-        requires: ['Rally.ui.grid.TreeGrid'],
+        extend: 'Rally.ui.dialog.Dialog',
 
         id: 'treegrid-popover',
         cls: 'treegrid-popover',
 
         width: 750,
-        maxHeight: 600,
+        maxHeight: 500,
 
         layout: 'fit',
+
+        autoShow: true,
+        componentCls: 'rly-popover dark-container',
+        header: true,
+        autoCenter: false,
+        closable: true,
+        shadow: false,
 
 
         initComponent: function() {

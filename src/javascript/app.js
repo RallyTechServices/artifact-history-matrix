@@ -34,7 +34,7 @@ Ext.define("artifact-history-matrix", {
     bucketFieldAttributeTypeWhitelist: [
         'STRING'
     ],
-    detailFetchFields: ["FormattedID","Name","State"],
+    detailFetchFields: ["FormattedID","Name","State","Priority","Milestones","Tags"],
     config: {
         defaultSettings: {
             artifactType: 'Defect',
@@ -52,12 +52,26 @@ Ext.define("artifact-history-matrix", {
     updateView: function(){
         var milestones = this.down('rallymilestonepicker').getValue(),
             tags = this.down('rallytagpicker').getValue(),
-            states = this.down('rallyfieldvaluecombobox').getValue();
+            states = this.down('#statePicker').getValue(),
+            priorities = this.down('#priorityPicker').getValue();
 
         this.logger.log('updateView',states, milestones, tags || 'no tags');
 
         this.getDisplayBox().removeAll();
-        this.fetchData(milestones, tags, states);
+        this.fetchData(milestones, tags, states, priorities);
+    },
+    checkFilterCleared: function(cb, newValue, oldValue){
+        //This is a hack because for some reason the dropdown is firing the change
+        //event on initialization and it does not fire the select event when teh
+        //list is cleared out.
+        //So, in this function, we are only checking that the new value = [], which
+        //means that someone unselected all options and that we shouldn't filter on that field.
+        this.logger.log('checkFilterCleared', cb.itemId, newValue, oldValue, cb.getValue());
+        if (newValue && newValue.length === 0){
+            //this is an empty array
+            this.updateView();
+        }
+
     },
     addSelectors: function(){
         this.getSelectorBox().removeAll();
@@ -82,6 +96,7 @@ Ext.define("artifact-history-matrix", {
             width: 250
         });
         sb.on('select', this.updateView, this);
+        sb.on('change', this.checkFilterCleared, this);
 
         var pb = box1.add({
             xtype: 'rallyfieldvaluecombobox',
@@ -98,6 +113,7 @@ Ext.define("artifact-history-matrix", {
             width: 250
         });
         pb.on('select', this.updateView, this);
+        pb.on('change', this.checkFilterCleared, this);
 
         var box2 = this.getSelectorBox().add({
             xtype: 'container',
@@ -253,6 +269,7 @@ Ext.define("artifact-history-matrix", {
             titleIconHtml: '<div class="icon-defect"></div>',
             modelNames: [this.getArtifactType()],
             target: grid.getEl(),
+            height: this.getHeight() *.95,
             gridConfig: {
                 storeConfig: {
                     filters: filters,
@@ -348,7 +365,7 @@ Ext.define("artifact-history-matrix", {
             return r.get('ObjectID');
         });
     },
-    fetchData: function(milestones, tags, states){
+    fetchData: function(milestones, tags, states, priorities){
 
         var config = {
             _TypeHierarchy: this.getArtifactType(),
@@ -365,6 +382,10 @@ Ext.define("artifact-history-matrix", {
 
         if (states && states.length > 0){
             config.State = {$in: states};
+        }
+
+        if (priorities && priorities.length > 0){
+            config.Priority = {$in: priorities};
         }
 
         this.logger.log('fetchData', config, this.getBucketField());
